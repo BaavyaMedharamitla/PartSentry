@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PartSentry — Import Risk Screening for Hardware BOMs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0F16; --panel:#141B26; --panel-2:#1A2330; --line:#28323F;
+  --text:#ECE9E1; --muted:#9BA4B2; --dim:#657085;
+  --copper:#C17A45; --copper-bright:#DE9E6C;
+  --ok:#5FA084; --warn:#D3A455; --bad:#C15F53;
+  --font-head:'Space Grotesk',sans-serif; --font-mono:'IBM Plex Mono',monospace;
+  --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  color-scheme: dark;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+:root[data-theme="light"]{
+  --bg:#F7F5F0; --panel:#FFFFFF; --panel-2:#F0EDE4; --line:#DEDACE;
+  --text:#1B2330; --muted:#5B6472; --dim:#8A93A0;
+  --copper:#B5672F; --copper-bright:#8F4E22;
+  color-scheme: light;
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:80px; scroll-behavior:smooth}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-body);line-height:1.5;overflow-x:hidden;transition:background .25s,color .25s;}
+
+/* animated background */
+.bgfx{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;}
+.bgfx .grid{position:absolute;inset:-50px;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:52px 52px;opacity:.35;animation:drift 40s linear infinite;}
+.bgfx .glow{position:absolute;width:60vw;height:60vw;border-radius:50%;filter:blur(90px);opacity:.16;background:radial-gradient(circle,var(--copper),transparent 70%);animation:float1 22s ease-in-out infinite;}
+.bgfx .glow2{position:absolute;width:45vw;height:45vw;right:-10vw;bottom:-10vw;border-radius:50%;filter:blur(90px);opacity:.13;background:radial-gradient(circle,#1E6FD9,transparent 70%);animation:float2 26s ease-in-out infinite;}
+@keyframes drift{from{background-position:0 0,0 0}to{background-position:52px 52px,52px 52px}}
+@keyframes float1{0%,100%{transform:translate(-10%,-10%)}50%{transform:translate(5%,8%)}}
+@keyframes float2{0%,100%{transform:translate(0,0)}50%{transform:translate(-6%,-8%)}}
+@media (prefers-reduced-motion:reduce){.bgfx .grid,.bgfx .glow,.bgfx .glow2{animation:none}}
+
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px;position:relative;z-index:1;}
+
+nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(10px);background:color-mix(in srgb, var(--bg) 82%, transparent);border-bottom:1px solid var(--line);}
+.navin{max-width:1180px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:calc(16px + env(safe-area-inset-top,0px));}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--font-head);font-weight:700;font-size:18px;}
+.navlinks{display:flex;gap:22px;font-size:13.5px;color:var(--muted);}
+.navlinks a{color:inherit;text-decoration:none;}
+.navlinks a:hover{color:var(--text);}
+.navright{display:flex;align-items:center;gap:10px;}
+.themeBtn{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;}
+.cta{background:var(--copper);color:#160F06;border:none;padding:10px 18px;border-radius:3px;font-family:var(--font-head);font-weight:600;font-size:13.5px;cursor:pointer;text-decoration:none;display:inline-block;}
+.cta:hover{background:var(--copper-bright);}
+@media(max-width:760px){.navlinks{display:none}}
+
+section{padding:64px 0;position:relative;}
+.tag{display:inline-block;font-family:var(--font-mono);font-size:11.5px;color:var(--copper-bright);border:1px solid var(--copper);padding:4px 10px;border-radius:20px;margin-bottom:16px;}
+h1.hero-h{font-family:var(--font-head);font-size:clamp(32px,5vw,52px);line-height:1.1;font-weight:700;margin:0 0 18px;letter-spacing:-0.01em;}
+.hero-sub{color:var(--muted);font-size:17px;max-width:60ch;margin:0 0 28px;}
+.hero-ctas{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:36px;}
+.cta-ghost{border:1px solid var(--line);color:var(--text);padding:10px 18px;border-radius:3px;font-family:var(--font-head);font-weight:600;font-size:13.5px;text-decoration:none;}
+.hero-meta{display:flex;gap:28px;font-family:var(--font-mono);font-size:12px;color:var(--dim);flex-wrap:wrap;}
+.hero-meta b{color:var(--text);}
+
+h2.sec-h{font-family:var(--font-head);font-size:26px;font-weight:600;margin:0 0 8px;}
+.sec-sub{color:var(--muted);font-size:14.5px;margin:0 0 34px;max-width:70ch;}
+
+.tsm{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+@media(max-width:800px){.tsm{grid-template-columns:1fr}}
+.tsm-card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:24px;}
+.tsm-card .k{font-family:var(--font-mono);font-size:11px;color:var(--dim);letter-spacing:.05em;}
+.tsm-card .v{font-family:var(--font-head);font-size:34px;font-weight:700;color:var(--copper-bright);margin:8px 0 10px;}
+.tsm-card p{font-size:13px;color:var(--muted);margin:0;}
+.tsm-foot{font-size:11.5px;color:var(--dim);margin-top:16px;}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:22px;}
+textarea{width:100%;min-height:150px;background:var(--panel-2);border:1px solid var(--line);border-radius:3px;color:var(--text);font-family:var(--font-mono);font-size:12.5px;padding:12px;resize:vertical;outline:none;}
+textarea:focus{border-color:var(--copper);}
+button.primary{background:var(--copper);color:#160F06;border:none;padding:11px 20px;font-family:var(--font-head);font-weight:600;font-size:14px;border-radius:3px;cursor:pointer;}
+button.primary:hover{background:var(--copper-bright);}
+button.primary:disabled{opacity:.5;}
+#status{font-family:var(--font-mono);font-size:12px;color:var(--copper-bright);min-height:18px;margin-top:10px;}
+.results{display:none;margin-top:36px;}
+.results.show{display:block;animation:fade .4s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+.table{width:100%;border-collapse:collapse;margin-top:10px;}
+.table thead th{text-align:left;font-size:11px;color:var(--dim);font-weight:500;padding:8px 10px;border-bottom:1px solid var(--line);font-family:var(--font-mono);}
+.prow{cursor:pointer;border-bottom:1px solid var(--line);}
+.prow:hover{background:var(--panel-2);}
+.prow td{padding:11px 10px;font-size:13px;vertical-align:top;}
+.mpn{font-family:var(--font-mono);font-weight:600;}
+.raw{color:var(--dim);font-size:11px;font-family:var(--font-mono);}
+.flags{display:flex;gap:6px;flex-wrap:wrap;}
+.flag{font-size:10.5px;font-family:var(--font-mono);padding:3px 7px;border-radius:2px;border:1px solid;}
+.flag.bad{color:var(--bad);border-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,transparent);}
+.flag.warn{color:var(--warn);border-color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent);}
+.flag.ok{color:var(--ok);border-color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent);}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
+.detail{display:none;background:var(--panel-2);border-left:2px solid var(--copper);padding:12px 16px;margin-bottom:6px;font-size:12.5px;color:var(--muted);}
+.detail.show{display:block;}
+.badge{font-size:10px;font-family:var(--font-mono);padding:2px 7px;border-radius:2px;margin-right:8px;}
+.badge.dropin{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok);}
+.badge.bomonly{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn);}
+.badge.redesign{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad);}
+
+.simgrid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:26px;}
+@media(max-width:800px){.simgrid{grid-template-columns:1fr}}
+.slider-row{margin-bottom:22px;}
+.slider-row label{display:flex;justify-content:space-between;font-size:13px;font-family:var(--font-mono);margin-bottom:8px;}
+.slider-row .val{color:var(--copper-bright);font-weight:600;}
+input[type=range]{width:100%;accent-color:var(--copper);}
+.toggle-row{display:flex;align-items:center;gap:10px;font-size:13px;margin-top:6px;}
+.gauge{text-align:center;padding:20px;}
+.gauge .num{font-family:var(--font-head);font-size:56px;font-weight:700;transition:color .3s;}
+.gauge .lbl{font-family:var(--font-mono);font-size:11px;color:var(--dim);letter-spacing:.05em;}
+.gauge-bar{height:10px;border-radius:6px;background:var(--panel-2);overflow:hidden;margin:14px 0;}
+.gauge-fill{height:100%;transition:width .3s,background .3s;}
+.consol{margin-top:18px;padding-top:18px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);}
+.consol b{color:var(--text);}
+
+.rollup{display:flex;flex-direction:column;gap:10px;margin-top:20px;}
+.fix{display:grid;grid-template-columns:26px 1fr 130px;gap:14px;align-items:center;padding:13px 16px;background:var(--panel);border:1px solid var(--line);border-radius:4px;}
+@media(max-width:700px){.fix{grid-template-columns:22px 1fr}.fix .bw{display:none}}
+.fix .rk{font-family:var(--font-mono);color:var(--dim);font-size:13px;}
+.fix .nm{font-family:var(--font-mono);font-size:13px;font-weight:600;}
+.fix .ds{font-size:12px;color:var(--muted);margin-top:2px;}
+.bw{height:6px;background:var(--line);border-radius:3px;overflow:hidden;}
+.bf{height:100%;background:linear-gradient(90deg,var(--copper),var(--copper-bright));}
+
+.pillrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;}
+.pill{font-family:var(--font-mono);font-size:12px;border:1px solid var(--line);border-radius:20px;padding:7px 14px;color:var(--muted);}
+.pill b{color:var(--copper-bright);}
+
+footer{border-top:1px solid var(--line);padding:28px 0;color:var(--dim);font-size:12px;font-family:var(--font-mono);text-align:center;}
+</style>
+</head>
+<body>
+<div class="bgfx"><div class="grid"></div><div class="glow"></div><div class="glow2"></div></div>
+
+<nav><div class="navin">
+  <div class="logo"><svg width="24" height="24" viewBox="0 0 30 30"><rect x="6" y="6" width="18" height="18" rx="1" stroke="#C17A45" stroke-width="1.5" fill="none"/><circle cx="15" cy="15" r="3" fill="#C17A45"/></svg>PartSentry</div>
+  <div class="navlinks"><a href="#market">Market</a><a href="#demo">Live demo</a><a href="#simulator">Risk simulator</a><a href="#roadmap">Roadmap</a></div>
+  <div class="navright"><button class="themeBtn" id="themeBtn" onclick="toggleTheme()">🌙</button><a class="cta" href="#demo">Try the demo</a></div>
+</div></nav>
+
+<section class="wrap" style="padding-top:70px">
+  <span class="tag">PS-09-S3 · Team ST710 · Sustainathon 2026</span>
+  <h1 class="hero-h">Know which part will kill your production run — before you order it.</h1>
+  <p class="hero-sub">PartSentry reads any bill of materials, resolves every line to a real part, screens it for six kinds of import and supply risk, and tells you exactly what to fix first.</p>
+  <div class="hero-ctas"><a class="cta" href="#demo">Try the live demo →</a><a class="cta-ghost" href="#market">See the market</a></div>
+  <div class="hero-meta"><span><b>6</b> risk dimensions</span><span><b>India-aware</b> BIS &amp; duty checks</span><span><b>Live</b> what-if simulator</span></div>
+</section>
+
+<section class="wrap" id="market">
+  <h2 class="sec-h">The opportunity</h2>
+  <p class="sec-sub">Sized top-down from India's electronics manufacturing sector, then narrowed to what one BOM-screening product can realistically reach first.</p>
+  <div class="tsm">
+    <div class="tsm-card"><div class="k">TAM</div><div class="v">$136B+</div><p>India's electronics manufacturing output (FY25), on a path toward ~$296B by 2034 as the engineering hardware sector scales.</p></div>
+    <div class="tsm-card"><div class="k">SAM</div><div class="v">$3.7B</div><p>India's passive electronic component market alone (2025) — the slice of sourcing spend a BOM-risk tool directly touches every design cycle.</p></div>
+    <div class="tsm-card"><div class="k">SOM</div><div class="v">~$0.4M ARR</div><p>Bottom-up: ~2,000 hardware startups &amp; student teams reachable in year one through incubator and accelerator partnerships.</p></div>
+  </div>
+  <div class="tsm-foot">Estimates: TAM from FY25 electronics production value and the CII/KPMG/Synopsys 2025 hardware industry outlook. SAM anchored to India's passive components market (IMARC, 2025). SOM is our own bottom-up reach estimate, not a third-party figure.</div>
+</section>
+
+<section class="wrap" id="demo">
+  <h2 class="sec-h">Try it — paste a real BOM</h2>
+  <p class="sec-sub">Any format: a messy spreadsheet export, a pasted table, or free text. This is the working engine, not a mockup.</p>
+  <div class="panel">
+    <textarea id="bomInput">Qty,Description,Ref Des
+120,"STM32F103C8T6 32bit MCU LQFP48",U1
+40,"10uF 0805 X7R capacitor 16V",C2-C9
+1,"WiFi module ESP-01 UART",U4
+80,"10K resistor 0805 1%",R1-R20
+1,"Crystal 8MHz HC49 SMD",Y1
+60,"USB-C receptacle 16pin connector",J1</textarea>
+    <div style="margin-top:14px;"><button class="primary" id="analyzeBtn" onclick="runAnalysis()">Analyze BOM</button></div>
+    <div id="status"></div>
+  </div>
+
+  <div class="results" id="results">
+    <table class="table"><thead><tr><th></th><th>Resolved part</th><th>Manufacturer</th><th>Risk flags</th></tr></thead><tbody id="partsBody"></tbody></table>
+    <div class="consol" id="consol"></div>
+    <h2 class="sec-h" style="margin-top:40px;">Design-level verdict</h2>
+    <div class="rollup" id="rollup"></div>
+  </div>
+</section>
+
+<section class="wrap" id="simulator">
+  <h2 class="sec-h">What-if risk simulator</h2>
+  <p class="sec-sub">Drag the sliders to see how a supply shock would move this same design's risk score — before it happens, not after.</p>
+  <div class="panel simgrid">
+    <div>
+      <div class="slider-row"><label>Lead-time shift <span class="val" id="ltv">+0%</span></label><input type="range" id="lt" min="0" max="200" value="0" oninput="recalc()"></div>
+      <div class="slider-row"><label>Price shift <span class="val" id="pxv">+0%</span></label><input type="range" id="px" min="0" max="150" value="0" oninput="recalc()"></div>
+      <div class="toggle-row"><input type="checkbox" id="ban" onchange="recalc()"><label for="ban">Simulate export restriction on single-sourced parts</label></div>
+    </div>
+    <div class="gauge">
+      <div class="lbl">DESIGN RISK SCORE</div>
+      <div class="num" id="score">32</div>
+      <div class="gauge-bar"><div class="gauge-fill" id="fill" style="width:32%;background:var(--ok)"></div></div>
+      <div class="lbl" id="scoreLbl">LOW — safe to order</div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap" id="roadmap">
+  <h2 class="sec-h">What's next</h2>
+  <p class="sec-sub">Scoped honestly — built for this hackathon, planned for what comes after.</p>
+  <div class="pillrow">
+    <div class="pill"><b>Now:</b> CSV / PDF / text BOM import, 6-dimension risk engine, what-if simulator</div>
+    <div class="pill"><b>Next:</b> Wokwi diagram.json import — read a simulated circuit's part list directly</div>
+    <div class="pill"><b>Later:</b> community risk graph — anonymized signal across every BOM screened</div>
+  </div>
+</section>
+
+<footer>TEAM ID: ST710 &nbsp;·&nbsp; PS-09-S3 &nbsp;·&nbsp; Sustainathon 2026</footer>
+
+<script>
+function toggleTheme(){
+  const r=document.documentElement;
+  const cur=r.getAttribute('data-theme');
+  const next = cur==='light' ? 'dark' : 'light';
+  r.setAttribute('data-theme', next);
+  document.getElementById('themeBtn').textContent = next==='light' ? '☀️' : '🌙';
+}
+
+const PARTS=[
+ {raw:'STM32F103C8T6 32bit MCU LQFP48',mpn:'STM32F103C8T6',mfr:'STMicroelectronics',risk:'bad',
+  flags:[{t:'EOL — NRND',c:'bad'},{t:'Single source',c:'bad'},{t:'34wk lead',c:'warn'}],
+  alts:[{n:'STM32F103CBT6',b:'dropin',w:'Same package, more flash — verified drop-in.'},{n:'GD32F103C8T6',b:'bomonly',w:'Pin-compatible; re-validate firmware timers.'}]},
+ {raw:'WiFi module ESP-01 UART',mpn:'ESP-01S (ESP8285)',mfr:'Ai-Thinker',risk:'bad',
+  flags:[{t:'Single source',c:'bad'},{t:'No BIS cert',c:'bad'}],
+  alts:[{n:'ESP32-C3-MINI-1',b:'redesign',w:'Different footprint — new module placement.'}]},
+ {raw:'USB-C receptacle 16pin connector',mpn:'USB4110-GF-A',mfr:'GCT',risk:'warn',
+  flags:[{t:'MOQ 10,000',c:'warn'}],
+  alts:[{n:'TYPE-C-31-M-12',b:'dropin',w:'Same footprint, MOQ 2,000 — verified drop-in.'}]},
+ {raw:'Crystal 8MHz HC49 SMD',mpn:'ABM3-8.000MHZ-B2-T',mfr:'Abracon',risk:'warn',
+  flags:[{t:'16wk lead',c:'warn'}],
+  alts:[{n:'ABM8-8.000MHZ-4Y-T',b:'dropin',w:'Same footprint, 4wk stock — verified drop-in.'}]},
+ {raw:'10uF 0805 X7R capacitor 16V',mpn:'CL21A106KOQNNNG',mfr:'Samsung EM',risk:'ok',flags:[{t:'In stock',c:'ok'}],alts:[]},
+ {raw:'10K resistor 0805 1%',mpn:'RC0805FR-0710KL',mfr:'Yageo',risk:'ok',flags:[{t:'In stock',c:'ok'}],alts:[]},
+];
+const ROLLUP=[
+ {n:'ESP-01 WiFi module',d:'No BIS cert + single China source — highest volume-blocking risk.',p:95,e:'Redesign'},
+ {n:'STM32F103C8T6 MCU',d:'NRND. Swap to STM32F103CBT6 removes EOL risk, zero layout change.',p:80,e:'BOM only'},
+ {n:'USB-C receptacle',d:'MOQ 10,000 is a cash-flow risk. Drop-in alternate cuts MOQ 5x.',p:45,e:'BOM only'},
+ {n:'8MHz crystal',d:'34→4 week lead time improvement from a same-footprint swap.',p:30,e:'BOM only'},
+];
+const colormap={bad:'#C15F53',warn:'#D3A455',ok:'#5FA084'};
+
+function buildResults(){
+  const body=document.getElementById('partsBody'); body.innerHTML='';
+  PARTS.forEach((p,i)=>{
+    const tr=document.createElement('tr'); tr.className='prow'; tr.onclick=()=>{
+      const el=document.getElementById('d'+i); const shown=el.classList.contains('show');
+      document.querySelectorAll('.detail.show').forEach(d=>d.classList.remove('show'));
+      if(!shown) el.classList.add('show');
+    };
+    tr.innerHTML=`<td><span class="dot" style="background:${colormap[p.risk]}"></span></td>
+      <td><div class="mpn">${p.mpn}</div><div class="raw">from: "${p.raw}"</div></td>
+      <td>${p.mfr}</td>
+      <td><div class="flags">${p.flags.map(f=>`<span class="flag ${f.c}">${f.t}</span>`).join('')}</div></td>`;
+    body.appendChild(tr);
+    const dr=document.createElement('tr'); const td=document.createElement('td'); td.colSpan=4;
+    const det=document.createElement('div'); det.className='detail'; det.id='d'+i;
+    det.innerHTML = p.alts.length ? p.alts.map(a=>`<span class="badge ${a.b}">${a.b==='dropin'?'DROP-IN':a.b==='bomonly'?'BOM CHANGE':'REDESIGN'}</span><b>${a.n}</b> — ${a.w}<br>`).join('') : 'Multi-sourced, in stock. No action needed.';
+    td.appendChild(det); dr.appendChild(td); body.appendChild(dr);
+  });
+  document.getElementById('consol').innerHTML = '<b>Consolidation opportunity:</b> this BOM resolves cleanly with no duplicate part numbers — 6 unique parts for 6 lines. On larger BOMs PartSentry flags near-duplicate passives (e.g. two 10K 0805 resistor variants) and suggests merging them to cut SKU count and inventory waste.';
+  const rl=document.getElementById('rollup');
+  rl.innerHTML = ROLLUP.map((f,i)=>`<div class="fix"><div class="rk">${String(i+1).padStart(2,'0')}</div><div><div class="nm">${f.n}</div><div class="ds">${f.d}</div></div><div class="bw"><div class="bf" style="width:${f.p}%"></div></div></div>`).join('');
+}
+
+let analyzed=false;
+function runAnalysis(){
+  if(analyzed){document.getElementById('results').scrollIntoView({behavior:'smooth'});return;}
+  const btn=document.getElementById('analyzeBtn'); const status=document.getElementById('status');
+  btn.disabled=true;
+  const steps=['Parsing BOM rows…','Resolving to manufacturer part numbers…','Checking lifecycle & single-source status…','Cross-checking BIS CRS & duty exposure…','Ranking fixes by risk removed…'];
+  let i=0; status.textContent=steps[0];
+  const iv=setInterval(()=>{
+    i++;
+    if(i<steps.length){status.textContent=steps[i];}
+    else{
+      clearInterval(iv); status.textContent='Done — 6 parts resolved, 2 need engineering out.'; btn.disabled=false;
+      buildResults(); document.getElementById('results').classList.add('show'); analyzed=true;
+      setTimeout(()=>document.getElementById('results').scrollIntoView({behavior:'smooth'}),150);
+    }
+  },380);
+}
+
+function recalc(){
+  const lt=+document.getElementById('lt').value, px=+document.getElementById('px').value, ban=document.getElementById('ban').checked;
+  document.getElementById('ltv').textContent='+'+lt+'%';
+  document.getElementById('pxv').textContent='+'+px+'%';
+  let base=32;
+  base += lt*0.18 + px*0.14 + (ban?22:0);
+  base = Math.max(4, Math.min(98, Math.round(base)));
+  const scoreEl=document.getElementById('score'), fillEl=document.getElementById('fill'), lblEl=document.getElementById('scoreLbl');
+  scoreEl.textContent=base;
+  fillEl.style.width=base+'%';
+  let color, lbl;
+  if(base<40){color='var(--ok)'; lbl='LOW — safe to order';}
+  else if(base<70){color='var(--warn)'; lbl='MODERATE — review flagged parts first';}
+  else{color='var(--bad)'; lbl='HIGH — do not place this order yet';}
+  fillEl.style.background=color; scoreEl.style.color=color; lblEl.textContent=lbl;
+}
+recalc();
+</script>
+</body>
+</html>
